@@ -256,6 +256,51 @@ func (m *Manager) Logout() error {
 	return m.cfg.Store.Delete(m.cfg.ServiceName, m.cfg.AccountName)
 }
 
+// --- Client credentials in keychain ---
+
+// ClientCredentials is the JSON payload stored under the client-credentials account.
+type ClientCredentials struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
+// SaveClientCredentials stores OAuth2 client_id + client_secret in the OS keychain.
+func (m *Manager) SaveClientCredentials(clientID, clientSecret string) error {
+	if clientID == "" || clientSecret == "" {
+		return errors.New("both client_id and client_secret must be non-empty")
+	}
+	payload, err := json.Marshal(ClientCredentials{ClientID: clientID, ClientSecret: clientSecret})
+	if err != nil {
+		return fmt.Errorf("marshal client credentials: %w", err)
+	}
+	return m.cfg.Store.Set(m.cfg.ServiceName, keychain.ClientCredentialsAccount, payload)
+}
+
+// LoadClientCredentials reads OAuth2 client_id + client_secret from the OS keychain.
+// Returns empty strings if not found (not an error).
+func (m *Manager) LoadClientCredentials() (clientID, clientSecret string) {
+	raw, err := m.cfg.Store.Get(m.cfg.ServiceName, keychain.ClientCredentialsAccount)
+	if err != nil {
+		if errors.Is(err, keychain.ErrNotFound) {
+			return "", ""
+		}
+		// Best-effort: log to stderr but don't fail — env vars may still provide them.
+		fmt.Fprintf(os.Stderr, "warning: could not read client credentials from keychain: %v\n", err)
+		return "", ""
+	}
+	var creds ClientCredentials
+	if err := json.Unmarshal(raw, &creds); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: corrupt client credentials in keychain: %v\n", err)
+		return "", ""
+	}
+	return creds.ClientID, creds.ClientSecret
+}
+
+// DeleteClientCredentials removes stored client credentials from the OS keychain.
+func (m *Manager) DeleteClientCredentials() error {
+	return m.cfg.Store.Delete(m.cfg.ServiceName, keychain.ClientCredentialsAccount)
+}
+
 // GetAccessToken returns a valid access token, automatically refreshing if expired.
 func (m *Manager) GetAccessToken(ctx context.Context) (string, error) {
 	tok, err := m.LoadToken()

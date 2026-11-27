@@ -14,6 +14,8 @@ const (
 	ServiceName = "inoreader-mcp"
 	// DefaultAccount is the default OS keychain account identifier for OAuth tokens.
 	DefaultAccount = "oauth-tokens"
+	// ClientCredentialsAccount stores OAuth2 client_id + client_secret in the keychain.
+	ClientCredentialsAccount = "client-credentials"
 
 	keychainTimeout = 10 * time.Second
 )
